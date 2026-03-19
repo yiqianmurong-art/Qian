@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, Suspense, lazy } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
   Map as MapIcon, 
@@ -25,54 +25,128 @@ import {
   Leaf,
   Loader2
 } from 'lucide-react';
-import { STATIONS, RECENT_RIDES, Station, Ride } from './types';
+import { STATIONS as INITIAL_STATIONS, Station, Ride } from './types';
 import { auth, googleProvider, db } from './firebase';
 import { onAuthStateChanged, signInWithPopup, User } from 'firebase/auth';
-import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
+import { 
+  doc, 
+  setDoc, 
+  serverTimestamp, 
+  collection, 
+  onSnapshot, 
+  updateDoc, 
+  increment,
+  deleteDoc, 
+  addDoc
+} from 'firebase/firestore';
 
 // --- Screens ---
 import LandingPage from './components/LandingPage';
-import MapPage from './components/MapPage';
-import StationDetail from './components/StationDetail';
-import Checkout from './components/Checkout';
-import ActiveRide from './components/ActiveRide';
-import TripSummary from './components/TripSummary';
-import Profile from './components/Profile';
+const MapPage = lazy(() => import('./components/MapPage'));
+const StationDetail = lazy(() => import('./components/StationDetail'));
+const Checkout = lazy(() => import('./components/Checkout'));
+const ActiveRide = lazy(() => import('./components/ActiveRide'));
+const TripSummary = lazy(() => import('./components/TripSummary'));
+const Profile = lazy(() => import('./components/Profile'));
 
 type Screen = 'landing' | 'map' | 'station-detail' | 'checkout' | 'active-ride' | 'summary' | 'profile' | 'login';
 
 export default function App() {
   const [currentScreen, setCurrentScreen] = useState<Screen>('landing');
+  const [stations, setStations] = useState<Station[]>([]);
   const [selectedStation, setSelectedStation] = useState<Station | null>(null);
   const [selectedBikeType, setSelectedBikeType] = useState<'standard' | 'electric'>('standard');
   const [activeRide, setActiveRide] = useState<Ride | null>(null);
   const [user, setUser] = useState<User | null>(null);
+  const [userData, setUserData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 
+  // Initialize Stations and Listen for Updates
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
-      if (firebaseUser) {
-        // Check if user exists in Firestore, if not create
-        const userRef = doc(db, 'users', firebaseUser.uid);
-        const userSnap = await getDoc(userRef);
-        
-        if (!userSnap.exists()) {
-          await setDoc(userRef, {
-            displayName: firebaseUser.displayName || 'New Rider',
-            email: firebaseUser.email,
-            photoURL: firebaseUser.photoURL,
-            role: 'user',
-            createdAt: serverTimestamp()
-          });
-        }
-        setUser(firebaseUser);
+    const stationsRef = collection(db, 'stations');
+    
+    const unsubscribe = onSnapshot(stationsRef, (snapshot) => {
+      if (snapshot.empty) {
+        // Initialize stations if empty in parallel
+        Promise.all(INITIAL_STATIONS.map(s => setDoc(doc(db, 'stations', s.id), s)))
+          .catch(err => console.error("Failed to initialize stations:", err));
       } else {
-        setUser(null);
+        const stationsList = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as Station));
+        
+        // Cleanup: Delete stations from DB that are no longer in INITIAL_STATIONS
+        const initialIds = INITIAL_STATIONS.map(s => s.id);
+        snapshot.docs.forEach(docSnap => {
+          if (!initialIds.includes(docSnap.id)) {
+            deleteDoc(docSnap.ref).catch(err => console.error("Failed to delete extra station:", err));
+          }
+        });
+
+        const filteredStations = stationsList.filter(s => initialIds.includes(s.id));
+        setStations(filteredStations);
       }
-      setLoading(false);
     });
 
     return () => unsubscribe();
+  }, []);
+
+  // Auth State Listener
+  useEffect(() => {
+    let unsubUser: (() => void) | null = null;
+
+    const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
+      // Clean up previous user listener if it exists
+      if (unsubUser) {
+        unsubUser();
+        unsubUser = null;
+      }
+
+      if (firebaseUser) {
+        setUser(firebaseUser);
+        const userRef = doc(db, 'users', firebaseUser.uid);
+        
+        // Listen to user data in real-time
+        unsubUser = onSnapshot(userRef, async (docSnap) => {
+          if (docSnap.exists()) {
+            setUserData(docSnap.data());
+          } else {
+            // Create user profile if it doesn't exist
+            const newUserData = {
+              displayName: firebaseUser.displayName || 'New Rider',
+              email: firebaseUser.email,
+              photoURL: firebaseUser.photoURL,
+              role: 'user',
+              walletBalance: 0,
+              createdAt: serverTimestamp(),
+              preferences: {
+                notifications: true,
+                darkMode: false,
+                language: 'English'
+              }
+            };
+            try {
+              await setDoc(userRef, newUserData);
+              setUserData(newUserData);
+            } catch (err) {
+              console.error("Failed to create user profile:", err);
+            }
+          }
+          // Set loading false once we have at least tried to get user data
+          setLoading(false);
+        }, (err) => {
+          console.error("User data snapshot error:", err);
+          setLoading(false);
+        });
+      } else {
+        setUser(null);
+        setUserData(null);
+        setLoading(false);
+      }
+    });
+
+    return () => {
+      unsubscribe();
+      if (unsubUser) unsubUser();
+    };
   }, []);
 
   const handleLogin = async () => {
@@ -98,7 +172,6 @@ export default function App() {
 
   const handleRent = (type: 'standard' | 'electric') => {
     if (activeRide && activeRide.status === 'active') {
-      alert('You already have an active ride. Please return your current bike before renting a new one.');
       navigateTo('active-ride');
       return;
     }
@@ -106,28 +179,60 @@ export default function App() {
     navigateTo('checkout');
   };
 
-  const startRide = (station: Station) => {
+  const startRide = async (station: Station) => {
+    if (!user) return;
+
+    const rideId = `KLR-${Math.floor(Math.random() * 90000) + 10000}`;
+    const startTime = new Date();
+    const dockNum = (Math.floor(Math.random() * 30) + 1).toString().padStart(2, '0');
+    const passcode = (Math.floor(Math.random() * 9000) + 1000).toString();
+    
     const newRide: Ride = {
-      id: `KLR-${Math.floor(Math.random() * 90000) + 10000}`,
+      id: rideId,
       from: station.name,
       to: '',
-      date: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
-      time: new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }),
+      date: startTime.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
+      time: startTime.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }),
       duration: '0 min',
       distance: '0 km',
       cost: 'RM 0.00',
       status: 'active',
+      bikeType: selectedBikeType,
+      dockNumber: dockNum,
+      passcode: passcode,
     };
-    setActiveRide(newRide);
-    navigateTo('active-ride');
+
+    try {
+      // Update Station Count
+      const stationRef = doc(db, 'stations', station.id);
+      await updateDoc(stationRef, {
+        [selectedBikeType === 'standard' ? 'bikes' : 'electricBikes']: increment(-1),
+        docks: increment(1)
+      });
+
+      // Save Ride to Firestore
+      const rideRef = doc(db, 'users', user.uid, 'rides', rideId);
+      await setDoc(rideRef, {
+        ...newRide,
+        userId: user.uid,
+        bikeType: selectedBikeType,
+        fromStationId: station.id,
+        startTime: startTime.toISOString(),
+      });
+
+      setActiveRide(newRide);
+      navigateTo('active-ride');
+    } catch (error) {
+      console.error("Failed to start ride:", error);
+    }
   };
 
-  const endRide = (seconds: number) => {
-    if (activeRide) {
-      const hourlyRate = 2;
+  const endRide = async (seconds: number, returnStation: Station) => {
+    if (activeRide && user) {
+      const hourlyRate = activeRide.bikeType === 'electric' ? 3 : 2;
       const penaltyFee = 50;
       const hours = Math.ceil(seconds / 3600);
-      const baseCost = Math.max(2, hours * hourlyRate);
+      const baseCost = Math.max(hourlyRate, hours * hourlyRate);
       const penalty = seconds > 3600 ? penaltyFee : 0;
       const totalCost = baseCost + penalty;
 
@@ -137,14 +242,44 @@ export default function App() {
 
       const completedRide: Ride = {
         ...activeRide,
-        to: 'Bukit Bintang', // Simulated return location
+        to: returnStation.name,
         duration: durationStr,
-        distance: `${(seconds * 0.005).toFixed(1)} km`, // Simulated distance based on time
+        distance: `${(seconds * 0.005).toFixed(1)} km`,
         cost: `RM ${totalCost.toFixed(2)}`,
         status: 'completed',
       };
-      setActiveRide(completedRide);
-      navigateTo('summary');
+
+      try {
+        // Update Return Station Count
+        const stationRef = doc(db, 'stations', returnStation.id);
+        await updateDoc(stationRef, {
+          [selectedBikeType === 'standard' ? 'bikes' : 'electricBikes']: increment(1),
+          docks: increment(-1)
+        });
+
+        // Update Ride in Firestore
+        const rideRef = doc(db, 'users', user.uid, 'rides', activeRide.id);
+        await updateDoc(rideRef, {
+          to: returnStation.name,
+          toStationId: returnStation.id,
+          endTime: new Date().toISOString(),
+          duration: durationStr,
+          distance: completedRide.distance,
+          cost: completedRide.cost,
+          status: 'completed'
+        });
+
+        // Deduct from Wallet
+        const userRef = doc(db, 'users', user.uid);
+        await updateDoc(userRef, {
+          walletBalance: increment(-totalCost)
+        });
+
+        setActiveRide(completedRide);
+        navigateTo('summary');
+      } catch (error) {
+        console.error("Failed to end ride:", error);
+      }
     }
   };
 
@@ -198,54 +333,66 @@ export default function App() {
             transition={{ duration: 0.2 }}
             className="h-full"
           >
-            {currentScreen === 'landing' && <LandingPage onFindBike={() => navigateTo('map')} />}
-            {currentScreen === 'login' && (
-              <div className="min-h-[calc(100vh-64px)] flex flex-col items-center justify-center p-6 text-center">
-                <div className="w-20 h-20 bg-primary/10 rounded-[32px] flex items-center justify-center text-primary mb-8">
-                  <Bike className="w-10 h-10" />
-                </div>
-                <h2 className="text-3xl font-bold text-background-dark mb-4">Welcome to CityRide</h2>
-                <p className="text-slate-500 mb-12 max-w-xs">Sign in to start your journey and explore the city on two wheels.</p>
-                <button 
-                  onClick={handleLogin}
-                  className="w-full max-w-xs py-5 bg-background-dark text-white font-bold rounded-[24px] shadow-xl hover:bg-slate-800 transition-all flex items-center justify-center gap-3"
-                >
-                  <img src="https://www.google.com/favicon.ico" alt="Google" className="w-5 h-5" />
-                  Continue with Google
-                </button>
+            <Suspense fallback={
+              <div className="min-h-[60vh] flex items-center justify-center">
+                <Loader2 className="w-10 h-10 text-primary animate-spin" />
               </div>
-            )}
-            {currentScreen === 'map' && (
-              <MapPage 
-                onSelectStation={(s) => navigateTo('station-detail', s)} 
-                onProfile={() => navigateTo('profile')}
-              />
-            )}
-            {currentScreen === 'station-detail' && selectedStation && (
-              <StationDetail 
-                station={selectedStation} 
-                onBack={() => navigateTo('map')} 
-                onRent={handleRent}
-                hasActiveRide={!!activeRide && activeRide.status === 'active'}
-              />
-            )}
-            {currentScreen === 'checkout' && selectedStation && (
-              <Checkout 
-                station={selectedStation} 
-                bikeType={selectedBikeType}
-                onConfirm={() => startRide(selectedStation)} 
-                onCancel={() => navigateTo('station-detail', selectedStation)}
-              />
-            )}
-            {currentScreen === 'active-ride' && (
-              <ActiveRide bikeType={selectedBikeType} onReturn={endRide} />
-            )}
-            {currentScreen === 'summary' && activeRide && (
-              <TripSummary ride={activeRide} onDone={() => navigateTo('map')} />
-            )}
-            {currentScreen === 'profile' && user && (
-              <Profile user={user} onBack={() => navigateTo('landing')} />
-            )}
+            }>
+              {currentScreen === 'landing' && <LandingPage onFindBike={() => navigateTo('map')} />}
+              {currentScreen === 'login' && (
+                <div className="min-h-[calc(100vh-64px)] flex flex-col items-center justify-center p-6 text-center">
+                  <div className="w-20 h-20 bg-primary/10 rounded-[32px] flex items-center justify-center text-primary mb-8">
+                    <Bike className="w-10 h-10" />
+                  </div>
+                  <h2 className="text-3xl font-bold text-background-dark mb-4">Welcome to CityRide</h2>
+                  <p className="text-slate-500 mb-12 max-w-xs">Sign in to start your journey and explore the city on two wheels.</p>
+                  <button 
+                    onClick={handleLogin}
+                    className="w-full max-w-xs py-5 bg-background-dark text-white font-bold rounded-[24px] shadow-xl hover:bg-slate-800 transition-all flex items-center justify-center gap-3"
+                  >
+                    <img src="https://www.google.com/favicon.ico" alt="Google" className="w-5 h-5" />
+                    Continue with Google
+                  </button>
+                </div>
+              )}
+              {currentScreen === 'map' && (
+                <MapPage 
+                  stations={stations}
+                  onSelectStation={(s) => navigateTo('station-detail', s)} 
+                  onProfile={() => navigateTo('profile')}
+                />
+              )}
+              {currentScreen === 'station-detail' && selectedStation && (
+                <StationDetail 
+                  station={selectedStation} 
+                  onBack={() => navigateTo('map')} 
+                  onRent={handleRent}
+                  hasActiveRide={!!activeRide && activeRide.status === 'active'}
+                />
+              )}
+              {currentScreen === 'checkout' && selectedStation && (
+                <Checkout 
+                  station={selectedStation} 
+                  bikeType={selectedBikeType}
+                  onConfirm={() => startRide(selectedStation)} 
+                  onCancel={() => navigateTo('station-detail', selectedStation)}
+                />
+              )}
+              {currentScreen === 'active-ride' && activeRide && (
+                <ActiveRide 
+                  ride={activeRide}
+                  bikeType={selectedBikeType} 
+                  stations={stations}
+                  onReturn={endRide} 
+                />
+              )}
+              {currentScreen === 'summary' && activeRide && (
+                <TripSummary ride={activeRide} onDone={() => navigateTo('map')} />
+              )}
+              {currentScreen === 'profile' && user && (
+                <Profile user={user} onBack={() => navigateTo('landing')} />
+              )}
+            </Suspense>
           </motion.div>
         </AnimatePresence>
       </main>

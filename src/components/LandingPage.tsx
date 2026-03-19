@@ -22,7 +22,7 @@ export default function LandingPage({ onFindBike }: LandingPageProps) {
               <span className="text-primary italic">with CityRide</span>
             </h1>
             <p className="text-slate-600 text-lg mb-8 max-w-md">
-              The most convenient and eco-friendly way to explore Kuala Lumpur. Find a bike at 20 major stations, scan, and ride.
+              The most convenient and eco-friendly way to explore Kuala Lumpur. Find a bike at 10 major stations, scan, and ride.
             </p>
             <div className="flex flex-col sm:flex-row gap-4">
               <button 
@@ -52,6 +52,7 @@ export default function LandingPage({ onFindBike }: LandingPageProps) {
               alt="Bike" 
               className="w-full h-auto rounded-3xl shadow-2xl rotate-3 hover:rotate-0 transition-transform duration-500"
               referrerPolicy="no-referrer"
+              loading="lazy"
             />
           </motion.div>
         </div>
@@ -61,7 +62,7 @@ export default function LandingPage({ onFindBike }: LandingPageProps) {
       <section className="bg-background-dark py-8 px-6">
         <div className="max-w-7xl mx-auto flex flex-wrap justify-around gap-8">
           <div className="flex flex-col items-center text-center">
-            <span className="text-primary text-3xl font-bold">20</span>
+            <span className="text-primary text-3xl font-bold">10</span>
             <span className="text-slate-400 text-sm uppercase tracking-widest">Active Hubs</span>
           </div>
           <div className="flex flex-col items-center text-center">
@@ -144,7 +145,7 @@ export default function LandingPage({ onFindBike }: LandingPageProps) {
                   <Zap className="w-8 h-8" />
                 </div>
                 <div className="text-right">
-                  <span className="text-3xl font-bold text-white">RM 2.00</span>
+                  <span className="text-3xl font-bold text-white">RM 3.00</span>
                   <p className="text-slate-400 text-sm">/ hour</p>
                 </div>
               </div>
@@ -177,7 +178,7 @@ export default function LandingPage({ onFindBike }: LandingPageProps) {
               <span className="font-bold text-2xl tracking-tight">CityRide</span>
             </div>
             <p className="text-slate-400 max-w-sm mb-8">
-              Revolutionizing urban mobility in Kuala Lumpur with sustainable and affordable bike-sharing solutions across 20 major hubs.
+              Revolutionizing urban mobility in Kuala Lumpur with sustainable and affordable bike-sharing solutions across 10 major hubs.
             </p>
             <div className="mb-8">
               <h4 className="font-bold text-sm uppercase tracking-widest text-slate-500 mb-4">Our Designers</h4>

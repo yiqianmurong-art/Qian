@@ -86,8 +86,11 @@ export default function StationDetail({ station, onBack, onRent, hasActiveRide }
           </div>
           <div className="bg-slate-50 p-4 rounded-3xl text-center">
             <span className="block text-2xl font-bold text-background-dark">{station.docks}</span>
-            <span className="text-[10px] text-slate-400 uppercase font-bold tracking-wider">Docks</span>
+            <span className="text-[10px] text-slate-400 uppercase font-bold tracking-wider">Empty Docks</span>
           </div>
+        </div>
+        <div className="mb-8 p-3 bg-slate-50 rounded-2xl text-center border border-slate-100">
+          <p className="text-xs text-slate-500 font-medium">Total Capacity: <span className="text-background-dark font-bold">30 Docks</span></p>
         </div>
 
         {/* Selection */}
@@ -134,7 +137,7 @@ export default function StationDetail({ station, onBack, onRent, hasActiveRide }
                 </div>
                 <div className="text-left">
                   <p className="font-bold text-background-dark">Electric Bicycle</p>
-                  <p className="text-xs text-slate-500">RM 2.00 / hour</p>
+                  <p className="text-xs text-slate-500">RM 3.00 / hour</p>
                 </div>
               </div>
               <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center ${

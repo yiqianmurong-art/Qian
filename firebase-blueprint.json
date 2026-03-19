@@ -5,37 +5,68 @@
       "description": "Stores user-specific information and preferences.",
       "type": "object",
       "properties": {
-        "displayName": {
-          "type": "string",
-          "description": "The user's full name."
-        },
-        "email": {
-          "type": "string",
-          "format": "email",
-          "description": "The user's email address."
-        },
-        "photoURL": {
-          "type": "string",
-          "description": "URL to the user's profile picture."
-        },
-        "role": {
-          "type": "string",
-          "enum": ["user", "admin"],
-          "description": "The user's role in the application."
-        },
-        "createdAt": {
-          "type": "string",
-          "format": "date-time",
-          "description": "When the profile was created."
+        "displayName": { "type": "string" },
+        "email": { "type": "string", "format": "email" },
+        "photoURL": { "type": "string" },
+        "role": { "type": "string", "enum": ["user", "admin"] },
+        "walletBalance": { "type": "number", "description": "Current balance in RM" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "preferences": {
+          "type": "object",
+          "properties": {
+            "notifications": { "type": "boolean" },
+            "darkMode": { "type": "boolean" },
+            "language": { "type": "string" }
+          }
         }
       },
-      "required": ["displayName", "email", "role"]
+      "required": ["displayName", "email", "role", "walletBalance"]
+    },
+    "Station": {
+      "title": "Bike Station",
+      "description": "Information about a bike sharing station.",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "lat": { "type": "number" },
+        "lng": { "type": "number" },
+        "bikes": { "type": "integer" },
+        "ebikes": { "type": "integer" },
+        "slots": { "type": "integer" }
+      },
+      "required": ["name", "lat", "lng", "bikes", "ebikes", "slots"]
+    },
+    "Ride": {
+      "title": "Ride Record",
+      "description": "Details of a completed or active ride.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "bikeType": { "type": "string", "enum": ["standard", "electric"] },
+        "fromStationId": { "type": "string" },
+        "toStationId": { "type": "string" },
+        "startTime": { "type": "string", "format": "date-time" },
+        "endTime": { "type": "string", "format": "date-time" },
+        "duration": { "type": "integer", "description": "Duration in seconds" },
+        "distance": { "type": "number" },
+        "cost": { "type": "number" },
+        "status": { "type": "string", "enum": ["active", "completed"] }
+      },
+      "required": ["userId", "bikeType", "fromStationId", "startTime", "status"]
     }
   },
   "firestore": {
     "users/{userId}": {
       "schema": "User",
-      "description": "Collection of user profile documents."
+      "description": "User profile documents."
+    },
+    "stations/{stationId}": {
+      "schema": "Station",
+      "description": "Global station information."
+    },
+    "users/{userId}/rides/{rideId}": {
+      "schema": "Ride",
+      "description": "User's ride history."
     }
   }
 }

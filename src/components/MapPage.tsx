@@ -16,15 +16,16 @@ import {
 import { STATIONS, Station } from '../types';
 
 interface MapPageProps {
+  stations: Station[];
   onSelectStation: (station: Station) => void;
   onProfile: () => void;
 }
 
-export default function MapPage({ onSelectStation, onProfile }: MapPageProps) {
+export default function MapPage({ stations, onSelectStation, onProfile }: MapPageProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [activeFilter, setActiveFilter] = useState<'all' | 'available' | 'electric'>('all');
 
-  const filteredStations = STATIONS.filter(s => {
+  const filteredStations = stations.filter(s => {
     const matchesSearch = s.name.toLowerCase().includes(searchQuery.toLowerCase());
     if (activeFilter === 'available') return matchesSearch && s.bikes > 0;
     if (activeFilter === 'electric') return matchesSearch && s.electricBikes > 0;

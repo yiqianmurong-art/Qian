@@ -1,5 +1,5 @@
-import React from 'react';
-import { motion } from 'motion/react';
+import React, { useState } from 'react';
+import { motion, AnimatePresence } from 'motion/react';
 import { 
   CheckCircle2, 
   Clock, 
@@ -8,7 +8,11 @@ import {
   ArrowRight, 
   Map as MapIcon,
   FileText,
-  Share2
+  Share2,
+  X,
+  Download,
+  CreditCard,
+  Bike
 } from 'lucide-react';
 import { Ride } from '../types';
 
@@ -18,6 +22,27 @@ interface TripSummaryProps {
 }
 
 export default function TripSummary({ ride, onDone }: TripSummaryProps) {
+  const [showReceipt, setShowReceipt] = useState(false);
+
+  const handleShare = async () => {
+    const shareData = {
+      title: 'CityRide Journey',
+      text: `I just finished a ride with CityRide! I traveled ${ride.distance} in ${ride.duration}.`,
+      url: window.location.origin,
+    };
+
+    try {
+      if (navigator.share) {
+        await navigator.share(shareData);
+      } else {
+        await navigator.clipboard.writeText(`${shareData.text} ${shareData.url}`);
+        alert('Ride details copied to clipboard!');
+      }
+    } catch (err) {
+      console.error('Error sharing:', err);
+    }
+  };
+
   return (
     <div className="max-w-2xl mx-auto bg-white min-h-screen p-6 flex flex-col">
       <div className="flex-grow flex flex-col items-center pt-12">
@@ -74,10 +99,16 @@ export default function TripSummary({ ride, onDone }: TripSummaryProps) {
         </div>
 
         <div className="grid grid-cols-2 gap-4 w-full">
-          <button className="flex items-center justify-center gap-2 py-4 bg-slate-50 text-slate-600 font-bold rounded-2xl hover:bg-slate-100 transition-colors">
+          <button 
+            onClick={() => setShowReceipt(true)}
+            className="flex items-center justify-center gap-2 py-4 bg-slate-50 text-slate-600 font-bold rounded-2xl hover:bg-slate-100 transition-colors"
+          >
             <FileText className="w-5 h-5" /> View Receipt
           </button>
-          <button className="flex items-center justify-center gap-2 py-4 bg-slate-50 text-slate-600 font-bold rounded-2xl hover:bg-slate-100 transition-colors">
+          <button 
+            onClick={handleShare}
+            className="flex items-center justify-center gap-2 py-4 bg-slate-50 text-slate-600 font-bold rounded-2xl hover:bg-slate-100 transition-colors"
+          >
             <Share2 className="w-5 h-5" /> Share Trip
           </button>
         </div>
@@ -89,6 +120,93 @@ export default function TripSummary({ ride, onDone }: TripSummaryProps) {
       >
         Go to Map <MapIcon className="w-5 h-5 text-primary" />
       </button>
+
+      {/* Receipt Modal */}
+      <AnimatePresence>
+        {showReceipt && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setShowReceipt(false)}
+              className="absolute inset-0 bg-background-dark/80 backdrop-blur-sm"
+            />
+            <motion.div 
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              className="relative w-full max-w-md bg-white rounded-[40px] overflow-hidden shadow-2xl"
+            >
+              <div className="p-8">
+                <div className="flex justify-between items-center mb-8">
+                  <div className="flex items-center gap-2">
+                    <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center">
+                      <Bike className="w-5 h-5 text-background-dark" />
+                    </div>
+                    <span className="font-bold text-lg text-background-dark">CityRide Receipt</span>
+                  </div>
+                  <button onClick={() => setShowReceipt(false)} className="p-2 hover:bg-slate-100 rounded-full">
+                    <X className="w-6 h-6 text-slate-400" />
+                  </button>
+                </div>
+
+                <div className="space-y-6">
+                  <div className="flex justify-between items-center pb-6 border-b border-slate-100">
+                    <div>
+                      <p className="text-[10px] text-slate-400 uppercase font-bold tracking-widest mb-1">Transaction ID</p>
+                      <p className="font-mono text-sm font-bold text-background-dark">{ride.id}</p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-[10px] text-slate-400 uppercase font-bold tracking-widest mb-1">Date</p>
+                      <p className="text-sm font-bold text-background-dark">{ride.date}</p>
+                    </div>
+                  </div>
+
+                  <div className="space-y-4">
+                    <div className="flex justify-between items-center">
+                      <span className="text-slate-500 font-medium">Base Fare (1 hr)</span>
+                      <span className="font-bold text-background-dark">RM {ride.bikeType === 'electric' ? '3.00' : '2.00'}</span>
+                    </div>
+                    {parseFloat(ride.cost.replace('RM ', '')) > (ride.bikeType === 'electric' ? 3 : 2) && (
+                      <div className="flex justify-between items-center">
+                        <span className="text-rose-500 font-medium">Overtime Penalty</span>
+                        <span className="font-bold text-rose-500">RM 50.00</span>
+                      </div>
+                    )}
+                    <div className="flex justify-between items-center">
+                      <span className="text-slate-500 font-medium">Service Fee</span>
+                      <span className="font-bold text-background-dark">RM 0.00</span>
+                    </div>
+                    <div className="pt-4 border-t border-slate-100 flex justify-between items-center">
+                      <span className="text-lg font-bold text-background-dark">Total Paid</span>
+                      <span className="text-2xl font-black text-primary">{ride.cost}</span>
+                    </div>
+                  </div>
+
+                  <div className="bg-slate-50 p-4 rounded-2xl flex items-center gap-3">
+                    <CreditCard className="w-5 h-5 text-slate-400" />
+                    <div>
+                      <p className="text-[10px] text-slate-400 uppercase font-bold tracking-widest">Paid via</p>
+                      <p className="text-xs font-bold text-background-dark">CityRide Wallet (**** **** 1234)</p>
+                    </div>
+                  </div>
+
+                  <button 
+                    onClick={() => {
+                      alert('Receipt downloaded successfully!');
+                      setShowReceipt(false);
+                    }}
+                    className="w-full py-4 bg-background-dark text-white font-bold rounded-2xl flex items-center justify-center gap-2 hover:bg-slate-800 transition-colors"
+                  >
+                    <Download className="w-5 h-5" /> Download PDF
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

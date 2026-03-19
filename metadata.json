@@ -1,6 +1,6 @@
 {
   "name": "CityRide",
-  "description": "Public bike-sharing platform for Kuala Lumpur. Check availability at 20 major stations and ride standard or electric bikes across the city.",
+  "description": "Public bike-sharing platform for Kuala Lumpur. Check availability at 10 major stations and ride standard or electric bikes across the city.",
   "requestFramePermissions": [
     "geolocation"
   ]

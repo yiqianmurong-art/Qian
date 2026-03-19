@@ -24,47 +24,24 @@ interface CheckoutProps {
 export default function Checkout({ station, bikeType, onConfirm, onCancel }: CheckoutProps) {
   const [paymentMethod, setPaymentMethod] = useState<'tng' | 'card' | 'fpx'>('tng');
   const [isProcessing, setIsProcessing] = useState(false);
-  const [isSuccess, setIsSuccess] = useState(false);
+  const [assignedDock, setAssignedDock] = useState('04');
 
-  const hourlyRate = 2;
+  const hourlyRate = bikeType === 'electric' ? 3 : 2;
   const deposit = 0;
   const totalDue = hourlyRate + deposit;
 
   const handleConfirm = () => {
     setIsProcessing(true);
+    const dockNum = (Math.floor(Math.random() * 30) + 1).toString().padStart(2, '0');
+    setAssignedDock(dockNum);
     // Simulate payment processing
     setTimeout(() => {
       setIsProcessing(false);
-      setIsSuccess(true);
-      // Wait a bit before navigating to active ride
-      setTimeout(() => {
-        onConfirm();
-      }, 2000);
-    }, 1500);
+      // Directly call onConfirm to go to ActiveRide screen
+      onConfirm();
+    }, 1000);
   };
 
-  if (isSuccess) {
-    return (
-      <div className="min-h-screen bg-white flex flex-col items-center justify-center p-6 text-center">
-        <motion.div 
-          initial={{ scale: 0 }}
-          animate={{ scale: 1 }}
-          className="w-24 h-24 bg-primary rounded-full flex items-center justify-center text-background-dark mb-8"
-        >
-          <CheckCircle2 className="w-12 h-12" />
-        </motion.div>
-        <h2 className="text-3xl font-bold text-background-dark mb-2">Payment Successful!</h2>
-        <p className="text-slate-500 mb-12">Your {bikeType} bike has been unlocked. Please proceed to dock #04.</p>
-        
-        <div className="w-full max-w-xs bg-slate-50 p-8 rounded-[40px] mb-8">
-          <p className="text-xs text-slate-400 uppercase font-bold tracking-widest mb-2">Unlock Passcode</p>
-          <p className="text-5xl font-bold text-background-dark tracking-[0.2em]">8829</p>
-        </div>
-        
-        <p className="text-sm text-slate-400 animate-pulse">Redirecting to your ride...</p>
-      </div>
-    );
-  }
 
   return (
     <div className="max-w-2xl mx-auto bg-white min-h-screen p-6">

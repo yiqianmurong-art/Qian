@@ -9,26 +9,43 @@ import {
   AlertCircle,
   CheckCircle2,
   ChevronUp,
-  X
+  X,
+  Search,
+  ChevronRight,
+  Share2
 } from 'lucide-react';
+import { Station, Ride } from '../types';
 
 interface ActiveRideProps {
+  ride: Ride;
   bikeType: 'standard' | 'electric';
-  onReturn: (seconds: number) => void;
+  stations: Station[];
+  onReturn: (seconds: number, returnStation: Station) => void;
 }
 
-export default function ActiveRide({ bikeType, onReturn }: ActiveRideProps) {
+export default function ActiveRide({ ride, bikeType, stations, onReturn }: ActiveRideProps) {
+  const [showSuccess, setShowSuccess] = useState(true);
   const [elapsedTime, setElapsedTime] = useState(0);
   const [isReturning, setIsReturning] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
 
-  const hourlyRate = 2;
+  const hourlyRate = bikeType === 'electric' ? 3 : 2;
   const penaltyFee = 50;
 
   useEffect(() => {
     const timer = setInterval(() => {
       setElapsedTime(prev => prev + 1);
     }, 1000);
-    return () => clearInterval(timer);
+    
+    // Hide success message after 4 seconds
+    const successTimer = setTimeout(() => {
+      setShowSuccess(false);
+    }, 4000);
+
+    return () => {
+      clearInterval(timer);
+      clearTimeout(successTimer);
+    };
   }, []);
 
   const formatTime = (seconds: number) => {
@@ -39,16 +56,73 @@ export default function ActiveRide({ bikeType, onReturn }: ActiveRideProps) {
 
   const calculateCost = () => {
     const hours = Math.ceil(elapsedTime / 3600);
-    const baseCost = Math.max(2, hours * hourlyRate);
-    // If they exceed 1 hour (3600 seconds), add RM 50 penalty
+    const baseCost = Math.max(hourlyRate, hours * hourlyRate);
     const penalty = elapsedTime > 3600 ? penaltyFee : 0;
     return (baseCost + penalty).toFixed(2);
   };
 
+  const handleShare = async () => {
+    if (navigator.share) {
+      try {
+        await navigator.share({
+          title: 'My CityRide Location',
+          text: `I'm currently riding a ${bikeType} bike from ${ride.from}. Join me!`,
+          url: window.location.href,
+        });
+      } catch (error) {
+        console.error('Error sharing:', error);
+      }
+    } else {
+      alert('Sharing not supported. Link: ' + window.location.href);
+    }
+  };
+
   const isExceeded = elapsedTime > 3600;
+
+  const filteredStations = stations.filter(s => 
+    s.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    s.location.toLowerCase().includes(searchQuery.toLowerCase())
+  );
 
   return (
     <div className="h-[calc(100vh-64px)] relative overflow-hidden flex flex-col">
+      {/* Success Overlay */}
+      <AnimatePresence>
+        {showSuccess && (
+          <motion.div 
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="absolute inset-0 z-[100] bg-background-dark/80 backdrop-blur-sm flex items-center justify-center p-6"
+          >
+            <motion.div 
+              initial={{ scale: 0.8, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.8, opacity: 0 }}
+              className="bg-white p-8 rounded-[40px] shadow-2xl text-center max-w-sm w-full"
+            >
+              <div className="w-20 h-20 bg-primary/20 rounded-full flex items-center justify-center mx-auto mb-6">
+                <CheckCircle2 className="w-10 h-10 text-primary" />
+              </div>
+              <h2 className="text-2xl font-bold text-background-dark mb-2">Payment Successful!</h2>
+              <p className="text-slate-500 mb-6">Your bike is unlocked and ready to ride.</p>
+              
+              <div className="bg-slate-50 p-6 rounded-3xl mb-6">
+                <p className="text-[10px] text-slate-400 uppercase font-bold tracking-widest mb-2">Unlock Passcode</p>
+                <p className="text-4xl font-bold font-mono tracking-[0.2em] text-primary">{ride.passcode || '5829'}</p>
+              </div>
+
+              <button 
+                onClick={() => setShowSuccess(false)}
+                className="w-full py-4 bg-background-dark text-white font-bold rounded-2xl hover:bg-slate-800 transition-colors"
+              >
+                Let's Ride!
+              </button>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* Real Map Background */}
       <div className="absolute inset-0 bg-slate-200">
         <iframe 
@@ -95,6 +169,36 @@ export default function ActiveRide({ bikeType, onReturn }: ActiveRideProps) {
           </div>
         </div>
 
+        <div className="flex justify-between items-start">
+          <div className="bg-white text-background-dark px-6 py-4 rounded-3xl shadow-xl pointer-events-auto flex items-center gap-4 border border-slate-100">
+            <div className="w-10 h-10 bg-primary/10 rounded-xl flex items-center justify-center text-primary">
+              <CheckCircle2 className="w-6 h-6" />
+            </div>
+            <div>
+              <p className="text-[10px] text-slate-400 uppercase font-bold tracking-widest">Unlock Passcode</p>
+              <p className="text-xl font-bold font-mono tracking-[0.2em]">{ride.passcode || '5829'}</p>
+            </div>
+          </div>
+
+          <div className="bg-white text-background-dark px-6 py-4 rounded-3xl shadow-xl pointer-events-auto flex items-center gap-4 border border-slate-100">
+            <div className="w-10 h-10 bg-slate-100 rounded-xl flex items-center justify-center text-slate-400">
+              <MapPin className="w-6 h-6" />
+            </div>
+            <div>
+              <p className="text-[10px] text-slate-400 uppercase font-bold tracking-widest">Dock Number</p>
+              <p className="text-xl font-bold font-mono">#{ride.dockNumber || '04'}</p>
+            </div>
+          </div>
+
+          <button 
+            onClick={handleShare}
+            className="bg-white text-background-dark p-4 rounded-3xl shadow-xl pointer-events-auto flex items-center gap-2 border border-slate-100 hover:bg-slate-50 transition-colors"
+          >
+            <Share2 className="w-6 h-6 text-primary" />
+            <span className="font-bold text-sm">Share Location</span>
+          </button>
+        </div>
+
         {isExceeded && (
           <motion.div 
             initial={{ opacity: 0, y: -10 }}
@@ -115,44 +219,49 @@ export default function ActiveRide({ bikeType, onReturn }: ActiveRideProps) {
               initial={{ y: 100 }}
               animate={{ y: 0 }}
               exit={{ y: 100 }}
-              className="bg-white p-8 rounded-[40px] shadow-2xl border border-slate-100"
+              className="bg-white p-8 rounded-[40px] shadow-2xl border border-slate-100 max-h-[70vh] flex flex-col"
             >
               <div className="flex justify-between items-start mb-6">
                 <div>
-                  <div className="flex items-center gap-2 text-emerald-500 font-bold text-sm mb-1">
-                    <CheckCircle2 className="w-4 h-4" /> Return Location Detected
-                  </div>
-                  <h3 className="text-2xl font-bold text-background-dark">Bukit Bintang Hub</h3>
+                  <h3 className="text-2xl font-bold text-background-dark">Select Return Station</h3>
+                  <p className="text-sm text-slate-500">Choose any station to end your ride</p>
                 </div>
                 <button onClick={() => setIsReturning(false)} className="p-2 hover:bg-slate-100 rounded-full transition-colors">
                   <X className="w-6 h-6 text-slate-400" />
                 </button>
               </div>
 
-              <div className="space-y-4 mb-8">
-                <p className="text-sm text-slate-500 font-medium">Before you finish:</p>
-                <div className="flex items-center gap-3">
-                  <div className="w-5 h-5 rounded border-2 border-primary bg-primary flex items-center justify-center">
-                    <CheckCircle2 className="w-3 h-3 text-background-dark" />
-                  </div>
-                  <span className="text-sm text-slate-600">Park within any designated CityRide hub area</span>
-                </div>
-                <div className="flex items-center gap-3">
-                  <div className="w-5 h-5 rounded border-2 border-primary bg-primary flex items-center justify-center">
-                    <CheckCircle2 className="w-3 h-3 text-background-dark" />
-                  </div>
-                  <span className="text-sm text-slate-600">Lock the rear wheel manually</span>
-                </div>
+              <div className="relative mb-4">
+                <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
+                <input 
+                  type="text"
+                  placeholder="Search stations..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="w-full bg-slate-50 border-none rounded-2xl pl-12 pr-4 py-4 font-medium focus:ring-2 focus:ring-primary/20"
+                />
               </div>
 
-              <button 
-                onClick={() => onReturn(elapsedTime)}
-                className="w-full py-6 bg-background-dark text-white font-black text-lg rounded-[24px] shadow-2xl hover:bg-slate-800 transition-all hover:scale-[1.02] flex items-center justify-center gap-3 border-4 border-primary"
-              >
-                <MapPin className="w-6 h-6 text-primary" />
-                RETURN BIKE HERE
-                <CheckCircle2 className="w-6 h-6 text-primary" />
-              </button>
+              <div className="flex-grow overflow-y-auto space-y-3 pr-2 custom-scrollbar">
+                {filteredStations.map((station) => (
+                  <button 
+                    key={station.id}
+                    onClick={() => onReturn(elapsedTime, station)}
+                    className="w-full p-5 bg-slate-50 hover:bg-primary/10 rounded-[32px] flex items-center justify-between group transition-all"
+                  >
+                    <div className="flex items-center gap-4">
+                      <div className="w-12 h-12 bg-white rounded-2xl flex items-center justify-center text-primary shadow-sm group-hover:bg-primary group-hover:text-background-dark transition-colors">
+                        <MapPin className="w-6 h-6" />
+                      </div>
+                      <div className="text-left">
+                        <h4 className="font-bold text-background-dark">{station.name}</h4>
+                        <p className="text-xs text-slate-400 font-medium">{station.location}</p>
+                      </div>
+                    </div>
+                    <ChevronRight className="w-5 h-5 text-slate-300 group-hover:text-primary transition-colors" />
+                  </button>
+                ))}
+              </div>
             </motion.div>
           ) : (
             <div className="flex flex-col gap-4">
@@ -161,8 +270,8 @@ export default function ActiveRide({ bikeType, onReturn }: ActiveRideProps) {
                   <AlertCircle className="w-6 h-6" />
                 </div>
                 <div className="flex-grow">
-                  <p className="text-sm font-bold text-background-dark">Low Battery Warning</p>
-                  <p className="text-xs text-slate-500">Please return to a hub within 15 mins.</p>
+                  <p className="text-sm font-bold text-background-dark">Ride in Progress</p>
+                  <p className="text-xs text-slate-500">Return to any hub to end your session.</p>
                 </div>
               </div>
 
