@@ -60,6 +60,8 @@ export default function App() {
   const [user, setUser] = useState<User | null>(null);
   const [userData, setUserData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [profileSubScreen, setProfileSubScreen] = useState<any>('main');
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
   // Initialize Stations and Listen for Updates
   useEffect(() => {
@@ -84,6 +86,8 @@ export default function App() {
         const filteredStations = stationsList.filter(s => initialIds.includes(s.id));
         setStations(filteredStations);
       }
+    }, (err) => {
+      console.error("Stations snapshot error:", err);
     });
 
     return () => unsubscribe();
@@ -166,7 +170,11 @@ export default function App() {
     if (screen === 'station-detail' && data) {
       setSelectedStation(data);
     }
+    if (screen === 'profile') {
+      setProfileSubScreen(data || 'main');
+    }
     setCurrentScreen(screen);
+    setIsMobileMenuOpen(false);
     window.scrollTo(0, 0);
   };
 
@@ -179,7 +187,7 @@ export default function App() {
     navigateTo('checkout');
   };
 
-  const startRide = async (station: Station) => {
+  const startRide = async (station: Station, plannedHours: number) => {
     if (!user) return;
 
     const rideId = `KLR-${Math.floor(Math.random() * 90000) + 10000}`;
@@ -200,6 +208,7 @@ export default function App() {
       bikeType: selectedBikeType,
       dockNumber: dockNum,
       passcode: passcode,
+      plannedHours: plannedHours,
     };
 
     try {
@@ -231,9 +240,13 @@ export default function App() {
     if (activeRide && user) {
       const hourlyRate = activeRide.bikeType === 'electric' ? 3 : 2;
       const penaltyFee = 50;
-      const hours = Math.ceil(seconds / 3600);
-      const baseCost = Math.max(hourlyRate, hours * hourlyRate);
-      const penalty = seconds > 3600 ? penaltyFee : 0;
+      const plannedHours = activeRide.plannedHours || 1;
+      
+      const actualHours = Math.ceil(seconds / 3600);
+      const baseCost = plannedHours * hourlyRate;
+      
+      // Penalty only if actual hours exceed planned hours
+      const penalty = actualHours > plannedHours ? penaltyFee : 0;
       const totalCost = baseCost + penalty;
 
       const mins = Math.floor(seconds / 60);
@@ -316,11 +329,88 @@ export default function App() {
               <UserIcon className="w-5 h-5 text-slate-600" />
             )}
           </button>
-          <button className="p-2 hover:bg-slate-100 rounded-full transition-colors md:hidden">
+          <button 
+            className="p-2 hover:bg-slate-100 rounded-full transition-colors md:hidden"
+            onClick={() => setIsMobileMenuOpen(true)}
+          >
             <Menu className="w-5 h-5 text-slate-600" />
           </button>
         </div>
       </header>
+
+      {/* Mobile Menu Overlay */}
+      <AnimatePresence>
+        {isMobileMenuOpen && (
+          <>
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setIsMobileMenuOpen(false)}
+              className="fixed inset-0 bg-background-dark/60 backdrop-blur-sm z-[60]"
+            />
+            <motion.div 
+              initial={{ x: '100%' }}
+              animate={{ x: 0 }}
+              exit={{ x: '100%' }}
+              transition={{ type: 'spring', damping: 25, stiffness: 200 }}
+              className="fixed top-0 right-0 bottom-0 w-[80%] max-w-sm bg-white z-[70] shadow-2xl p-8 flex flex-col"
+            >
+              <div className="flex justify-between items-center mb-12">
+                <div className="flex items-center gap-2">
+                  <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center">
+                    <Bike className="w-5 h-5 text-background-dark" />
+                  </div>
+                  <span className="font-bold text-xl text-background-dark">CityRide</span>
+                </div>
+                <button onClick={() => setIsMobileMenuOpen(false)} className="p-2 hover:bg-slate-100 rounded-full">
+                  <X className="w-6 h-6 text-slate-400" />
+                </button>
+              </div>
+
+              <div className="flex-grow space-y-6">
+                {[
+                  { icon: <Home className="w-5 h-5" />, label: 'Home', screen: 'landing' },
+                  { icon: <MapIcon className="w-5 h-5" />, label: 'Find a Bike', screen: 'map' },
+                  { icon: <History className="w-5 h-5" />, label: 'Ride History', screen: 'profile', data: 'history' },
+                  { icon: <Wallet className="w-5 h-5" />, label: 'Wallet', screen: 'profile', data: 'topup' },
+                  { icon: <UserIcon className="w-5 h-5" />, label: 'My Profile', screen: 'profile' },
+                ].map((item, i) => (
+                  <button 
+                    key={i}
+                    onClick={() => navigateTo(item.screen as Screen, item.data)}
+                    className="w-full flex items-center gap-4 p-4 rounded-2xl hover:bg-slate-50 transition-colors text-left"
+                  >
+                    <div className="text-slate-400">{item.icon}</div>
+                    <span className="font-bold text-background-dark">{item.label}</span>
+                  </button>
+                ))}
+              </div>
+
+              <div className="pt-8 border-t border-slate-100">
+                {user ? (
+                  <button 
+                    onClick={async () => {
+                      await auth.signOut();
+                      navigateTo('landing');
+                    }}
+                    className="w-full py-4 bg-rose-50 text-rose-500 font-bold rounded-2xl flex items-center justify-center gap-2"
+                  >
+                    <LogOut className="w-5 h-5" /> Sign Out
+                  </button>
+                ) : (
+                  <button 
+                    onClick={() => navigateTo('login')}
+                    className="w-full py-4 bg-primary text-background-dark font-bold rounded-2xl flex items-center justify-center gap-2"
+                  >
+                    Sign In
+                  </button>
+                )}
+              </div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
 
       {/* Main Content */}
       <main className="flex-grow relative">
@@ -374,7 +464,7 @@ export default function App() {
                 <Checkout 
                   station={selectedStation} 
                   bikeType={selectedBikeType}
-                  onConfirm={() => startRide(selectedStation)} 
+                  onConfirm={(duration) => startRide(selectedStation, duration)} 
                   onCancel={() => navigateTo('station-detail', selectedStation)}
                 />
               )}
@@ -390,7 +480,7 @@ export default function App() {
                 <TripSummary ride={activeRide} onDone={() => navigateTo('map')} />
               )}
               {currentScreen === 'profile' && user && (
-                <Profile user={user} onBack={() => navigateTo('landing')} />
+                <Profile user={user} onBack={() => navigateTo('landing')} initialSubScreen={profileSubScreen} />
               )}
             </Suspense>
           </motion.div>
@@ -414,13 +504,16 @@ export default function App() {
             <MapIcon className="w-5 h-5" />
             <span className="text-[10px] font-medium">Map</span>
           </button>
-          <button className="flex flex-col items-center gap-1 text-slate-400">
+          <button 
+            className={`flex flex-col items-center gap-1 ${currentScreen === 'profile' && profileSubScreen === 'history' ? 'text-primary' : 'text-slate-400'}`}
+            onClick={() => navigateTo('profile', 'history')}
+          >
             <History className="w-5 h-5" />
             <span className="text-[10px] font-medium">History</span>
           </button>
           <button 
-            className={`flex flex-col items-center gap-1 ${currentScreen === 'profile' ? 'text-primary' : 'text-slate-400'}`}
-            onClick={() => navigateTo('profile')}
+            className={`flex flex-col items-center gap-1 ${currentScreen === 'profile' && profileSubScreen === 'main' ? 'text-primary' : 'text-slate-400'}`}
+            onClick={() => navigateTo('profile', 'main')}
           >
             <UserIcon className="w-5 h-5" />
             <span className="text-[10px] font-medium">Profile</span>

@@ -17,7 +17,7 @@ import { Station } from '../types';
 interface CheckoutProps {
   station: Station;
   bikeType: 'standard' | 'electric';
-  onConfirm: () => void;
+  onConfirm: (duration: number) => void;
   onCancel: () => void;
 }
 
@@ -25,10 +25,11 @@ export default function Checkout({ station, bikeType, onConfirm, onCancel }: Che
   const [paymentMethod, setPaymentMethod] = useState<'tng' | 'card' | 'fpx'>('tng');
   const [isProcessing, setIsProcessing] = useState(false);
   const [assignedDock, setAssignedDock] = useState('04');
+  const [selectedDuration, setSelectedDuration] = useState(1); // Default 1 hour
 
   const hourlyRate = bikeType === 'electric' ? 3 : 2;
   const deposit = 0;
-  const totalDue = hourlyRate + deposit;
+  const totalDue = (hourlyRate * selectedDuration) + deposit;
 
   const handleConfirm = () => {
     setIsProcessing(true);
@@ -38,7 +39,7 @@ export default function Checkout({ station, bikeType, onConfirm, onCancel }: Che
     setTimeout(() => {
       setIsProcessing(false);
       // Directly call onConfirm to go to ActiveRide screen
-      onConfirm();
+      onConfirm(selectedDuration);
     }, 1000);
   };
 
@@ -73,6 +74,10 @@ export default function Checkout({ station, bikeType, onConfirm, onCancel }: Che
             <span className="font-bold">#KLR-2044</span>
           </div>
           <div className="flex justify-between items-center">
+            <span className="text-slate-400">Duration</span>
+            <span className="font-bold">{selectedDuration} {selectedDuration === 1 ? 'Hour' : 'Hours'}</span>
+          </div>
+          <div className="flex justify-between items-center">
             <span className="text-slate-400">Hourly Rate</span>
             <span className="font-bold">RM {hourlyRate.toFixed(2)}</span>
           </div>
@@ -86,6 +91,27 @@ export default function Checkout({ station, bikeType, onConfirm, onCancel }: Che
           <span className="text-lg font-bold">Total Due</span>
           <span className="text-3xl font-bold text-primary">RM {totalDue.toFixed(2)}</span>
         </div>
+      </div>
+
+      {/* Duration Selection */}
+      <div className="mb-8">
+        <h3 className="font-bold text-background-dark mb-4">Rental Duration</h3>
+        <div className="grid grid-cols-4 gap-3">
+          {[1, 2, 3, 4].map((hr) => (
+            <button
+              key={hr}
+              onClick={() => setSelectedDuration(hr)}
+              className={`py-4 rounded-[24px] border-2 transition-all font-bold text-sm ${
+                selectedDuration === hr ? 'border-primary bg-primary/5 text-background-dark' : 'border-slate-100 bg-white text-slate-400'
+              }`}
+            >
+              {hr}h
+            </button>
+          ))}
+        </div>
+        <p className="text-[10px] text-slate-400 mt-3 font-medium px-2">
+          * You can rent for up to 4 hours. RM {hourlyRate.toFixed(2)} per hour.
+        </p>
       </div>
 
       {/* Payment Methods */}
@@ -145,7 +171,7 @@ export default function Checkout({ station, bikeType, onConfirm, onCancel }: Che
         <div className="flex items-center gap-3 p-4 bg-amber-50 rounded-2xl border border-amber-100">
           <AlertCircle className="w-5 h-5 text-amber-600" />
           <p className="text-xs text-amber-700 font-medium">
-            <span className="font-bold uppercase">Penalty Notice:</span> If you exceed the time paid, a penalty of <span className="font-bold">RM 50.00</span> will be charged upon return.
+            <span className="font-bold uppercase">Penalty Notice:</span> If you exceed the <span className="font-bold">{selectedDuration} {selectedDuration === 1 ? 'hour' : 'hours'}</span> paid, a penalty of <span className="font-bold">RM 50.00</span> will be charged upon return.
           </p>
         </div>
       </div>

@@ -36,12 +36,13 @@ import { doc, getDoc, updateDoc, collection, query, orderBy, limit, getDocs, inc
 interface ProfileProps {
   user: User;
   onBack: () => void;
+  initialSubScreen?: SubScreen;
 }
 
 type SubScreen = 'main' | 'personal' | 'payment' | 'history' | 'preferences' | 'security' | 'vouchers' | 'topup';
 
-export default function Profile({ user, onBack }: ProfileProps) {
-  const [subScreen, setSubScreen] = useState<SubScreen>('main');
+export default function Profile({ user, onBack, initialSubScreen = 'main' }: ProfileProps) {
+  const [subScreen, setSubScreen] = useState<SubScreen>(initialSubScreen);
   const [isEditing, setIsEditing] = useState(false);
   const [displayName, setDisplayName] = useState(user.displayName || '');
   const [isSaving, setIsSaving] = useState(false);
@@ -64,13 +65,22 @@ export default function Profile({ user, onBack }: ProfileProps) {
   }, [user.uid]);
 
   useEffect(() => {
+    setSubScreen(initialSubScreen);
+  }, [initialSubScreen]);
+
+  useEffect(() => {
     if (subScreen === 'history') {
       const fetchHistory = async () => {
-        const ridesRef = collection(db, 'users', user.uid, 'rides');
-        const q = query(ridesRef, orderBy('startTime', 'desc'), limit(20));
-        const querySnapshot = await getDocs(q);
-        const rides = querySnapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as Ride));
-        setRideHistory(rides);
+        try {
+          const ridesRef = collection(db, 'users', user.uid, 'rides');
+          const q = query(ridesRef, orderBy('startTime', 'desc'), limit(20));
+          const querySnapshot = await getDocs(q);
+          const rides = querySnapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as Ride));
+          setRideHistory(rides);
+        } catch (error) {
+          console.error("Failed to fetch ride history:", error);
+          // If index is missing, it will log here.
+        }
       };
       fetchHistory();
     }
@@ -258,6 +268,75 @@ export default function Profile({ user, onBack }: ProfileProps) {
                   <span className="text-sm font-bold">Language</span>
                 </div>
                 <span className="text-xs font-bold text-slate-400">English</span>
+              </div>
+            </div>
+          </div>
+        );
+      case 'payment':
+        return (
+          <div className="p-6">
+            <div className="flex items-center gap-4 mb-8">
+              <button onClick={() => setSubScreen('main')} className="p-2 hover:bg-slate-100 rounded-full">
+                <ArrowLeft className="w-6 h-6" />
+              </button>
+              <h2 className="text-xl font-bold">Payment Methods</h2>
+            </div>
+            <div className="space-y-4">
+              <div className="bg-white p-6 rounded-[32px] shadow-sm flex items-center justify-between">
+                <div className="flex items-center gap-4">
+                  <div className="w-12 h-12 bg-slate-50 rounded-2xl flex items-center justify-center text-slate-400">
+                    <CreditCard className="w-6 h-6" />
+                  </div>
+                  <div>
+                    <p className="font-bold text-background-dark">CityRide Wallet</p>
+                    <p className="text-xs text-slate-400">Primary Payment Method</p>
+                  </div>
+                </div>
+                <div className="w-6 h-6 bg-primary rounded-full flex items-center justify-center text-background-dark">
+                  <Check className="w-4 h-4" />
+                </div>
+              </div>
+              <button className="w-full p-6 border-2 border-dashed border-slate-200 rounded-[32px] flex items-center justify-center gap-2 text-slate-400 hover:border-primary/50 hover:text-primary transition-all">
+                <Plus className="w-5 h-5" />
+                <span className="font-bold">Add New Method</span>
+              </button>
+            </div>
+          </div>
+        );
+      case 'security':
+        return (
+          <div className="p-6">
+            <div className="flex items-center gap-4 mb-8">
+              <button onClick={() => setSubScreen('main')} className="p-2 hover:bg-slate-100 rounded-full">
+                <ArrowLeft className="w-6 h-6" />
+              </button>
+              <h2 className="text-xl font-bold">Security & Privacy</h2>
+            </div>
+            <div className="bg-white rounded-[32px] shadow-sm overflow-hidden">
+              <div className="p-5 flex items-center justify-between border-b border-slate-50">
+                <div className="flex items-center gap-4">
+                  <Lock className="w-5 h-5 text-slate-400" />
+                  <span className="text-sm font-bold">Biometric Login</span>
+                </div>
+                <div className="w-12 h-6 bg-slate-100 rounded-full relative">
+                  <div className="absolute left-1 top-1 w-4 h-4 bg-white rounded-full shadow-sm" />
+                </div>
+              </div>
+              <div className="p-5 flex items-center justify-between border-b border-slate-50">
+                <div className="flex items-center gap-4">
+                  <Eye className="w-5 h-5 text-slate-400" />
+                  <span className="text-sm font-bold">Privacy Mode</span>
+                </div>
+                <div className="w-12 h-6 bg-primary rounded-full relative">
+                  <div className="absolute right-1 top-1 w-4 h-4 bg-white rounded-full shadow-sm" />
+                </div>
+              </div>
+              <div className="p-5 flex items-center justify-between">
+                <div className="flex items-center gap-4">
+                  <ShieldCheck className="w-5 h-5 text-slate-400" />
+                  <span className="text-sm font-bold">Two-Factor Auth</span>
+                </div>
+                <span className="text-xs font-bold text-slate-400">Disabled</span>
               </div>
             </div>
           </div>

@@ -55,9 +55,10 @@ export default function ActiveRide({ ride, bikeType, stations, onReturn }: Activ
   };
 
   const calculateCost = () => {
-    const hours = Math.ceil(elapsedTime / 3600);
-    const baseCost = Math.max(hourlyRate, hours * hourlyRate);
-    const penalty = elapsedTime > 3600 ? penaltyFee : 0;
+    const plannedHours = ride.plannedHours || 1;
+    const actualHours = Math.ceil(elapsedTime / 3600);
+    const baseCost = plannedHours * hourlyRate;
+    const penalty = actualHours > plannedHours ? penaltyFee : 0;
     return (baseCost + penalty).toFixed(2);
   };
 
@@ -77,7 +78,7 @@ export default function ActiveRide({ ride, bikeType, stations, onReturn }: Activ
     }
   };
 
-  const isExceeded = elapsedTime > 3600;
+  const isExceeded = elapsedTime > (ride.plannedHours || 1) * 3600;
 
   const filteredStations = stations.filter(s => 
     s.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -209,6 +210,11 @@ export default function ActiveRide({ ride, bikeType, stations, onReturn }: Activ
             <p className="text-xs font-bold">TIME EXCEEDED! RM 50.00 penalty applied. Please return the bike immediately.</p>
           </motion.div>
         )}
+
+        <div className="bg-primary/10 text-primary px-6 py-3 rounded-2xl shadow-sm pointer-events-auto flex items-center gap-3 border border-primary/20 backdrop-blur-sm self-start">
+          <Clock className="w-4 h-4" />
+          <p className="text-xs font-bold uppercase tracking-wider">Planned: {ride.plannedHours || 1} { (ride.plannedHours || 1) === 1 ? 'Hour' : 'Hours'}</p>
+        </div>
       </div>
 
       {/* Bottom Controls */}

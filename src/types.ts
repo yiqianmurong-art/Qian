@@ -171,6 +171,9 @@ export interface Ride {
   bikeType: 'standard' | 'electric';
   dockNumber?: string;
   passcode?: string;
+  startTime?: string;
+  endTime?: string;
+  plannedHours?: number;
 }
 
 export const RECENT_RIDES: Ride[] = [
